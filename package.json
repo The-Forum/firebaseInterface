@@ -1,0 +1,21 @@
+{
+  "name": "firebaseInterface",
+  "version": "1.0.0",
+  "main": "./bin/index.js",
+  "repository": "git@github.com:Heatrify/firebaseInterface.git",
+  "author": "Justin <jusheinz@aol.de>",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^17.0.8",
+    "dotenv": "^10.0.0",
+    "firebase-admin": "^10.0.1",
+    "typescript": "^4.5.4"
+  },
+  "devDependencies": {
+    "ts-node": "^10.4.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node ./bin/index.js"
+  }
+}
