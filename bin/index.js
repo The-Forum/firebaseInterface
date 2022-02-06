@@ -31,6 +31,8 @@ var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 const admin = __importStar(require("firebase-admin"));
 const fs = __importStar(require("fs"));
+const { performance } = require("perf_hooks");
+const updateDAOs_1 = require("./updateDAOs");
 require("dotenv").config();
 //should be integrated with cloud functions: do firebase init in fresh project and follow  https://medium.com/litslink/firebase-admin-sdk-basics-in-examples-ee7e009a1116
 admin.initializeApp({
@@ -61,9 +63,65 @@ function exportCollection(collection) {
             txt += ",";
             txt += doc.data().hint;
             txt += ",";
-            txt += (_a = doc.data().options) === null || _a === void 0 ? void 0 : _a.toString().replaceAll(",", ";");
+            txt += (_a = doc
+                .data()
+                .options) === null || _a === void 0 ? void 0 : _a.toString().replaceAll(",", ";");
         });
         fs.writeFileSync(`questions/${collection}.csv`, txt);
+    });
+}
+function updateDAOs() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let tokenDataArray = [];
+        let time = performance.now();
+        yield (0, updateDAOs_1.getListOfTokensFromCoinGecko)().then((tokenList) => __awaiter(this, void 0, void 0, function* () {
+            let numberOfCalls = 1;
+            let ensAddresses = (0, updateDAOs_1.getDataFromSnapshot)();
+            ensAddresses = ensAddresses.slice(0, 500);
+            for (const address of ensAddresses) {
+                const spaceData = (yield (0, updateDAOs_1.getDataFromSnapshotAboutSpace)(address));
+                const token = tokenList.filter((token) => token.symbol.toLowerCase() == spaceData.symbol.toLowerCase())[0];
+                if (token) {
+                    if (numberOfCalls >= 50) {
+                        console.log("here");
+                        yield new Promise((resolve) => setTimeout(() => {
+                            time = performance.now();
+                            numberOfCalls = 0;
+                            doCoingeckocall();
+                            resolve();
+                        }, 61 * 1000 - (performance.now() - time)));
+                    }
+                    else {
+                        yield doCoingeckocall();
+                    }
+                    function doCoingeckocall() {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            const tokenData = (yield (0, updateDAOs_1.getTokenDetail)(token.id)).data;
+                            numberOfCalls += 1;
+                            //console.log(numberOfCalls); //what is the data we get here?? everything undefined??
+                            //console.log(tokenData)
+                            //console.log({ name: tokenData.name, description: tokenData.description.en, links: tokenData.links, image: tokenData.image.large, categories: tokenData.categories })
+                            tokenDataArray.push({
+                                id: tokenData.id,
+                                ensName: address,
+                                symbol: tokenData.symbol,
+                                avatar: spaceData.avatar,
+                                followersCount: spaceData.followersCount,
+                                name: tokenData.name,
+                                description: tokenData.description && tokenData.description.en,
+                                links: tokenData.links,
+                                image: tokenData.image && tokenData.image.large,
+                                categories: tokenData.categories,
+                            });
+                        });
+                    }
+                }
+                else {
+                    console.log(spaceData.symbol);
+                }
+            }
+            fs.writeFileSync("daos.csv", JSON.stringify(tokenDataArray));
+        }));
     });
 }
 function importCollection(collection, doc) {
@@ -82,7 +140,7 @@ function importCollection(collection, doc) {
                 header.split(",").forEach((key, attIndex) => {
                     const value = attIndex >= values.length || values[attIndex] == "undefined"
                         ? "null"
-                        : "\"" + values[attIndex].replaceAll("\\,", ',') + "\"";
+                        : '"' + values[attIndex].replaceAll("\\,", ",") + '"';
                     object += '"' + key + '":' + value + ",\n";
                 });
                 object = object.slice(0, object.length - 2);
@@ -106,11 +164,12 @@ function importCollection(collection, doc) {
         }));
     });
 }
-let collection = "daos";
+/*let collection = "daos";
 let files = fs.readdirSync(collection);
 for (const file of files) {
-    importCollection(collection, `${file.split(".")[0]}`);
-}
+  importCollection(collection, `${file.split(".")[0]}`);
+}*/
+updateDAOs();
 //exportCollection('first-quote-questions')
 //exportCollection('installer_questions')
 //exportCollection('project-detail-questions')
